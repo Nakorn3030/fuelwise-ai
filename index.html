@@ -1,0 +1,490 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>FuelWise AI | ระบบประเมินค่าน้ำมันตามสภาพจราจร 50 เขตกรุงเทพฯ</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Thai:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<script src="https://cdn.tailwindcss.com"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+<style>
+  body { font-family: 'IBM Plex Sans Thai', system-ui, sans-serif; background: #020617; }
+  .panel { background: #0f172a; border: 1px solid #1e293b; border-radius: 1rem; }
+  .field { background: #020617; border: 1px solid #334155; border-radius: .6rem; color: #e2e8f0; padding: .55rem .75rem; width: 100%; }
+  .field:focus, button:focus-visible { outline: 2px solid #22d3ee; outline-offset: 2px; }
+  .num { font-variant-numeric: tabular-nums; }
+  .tod-opt { display: block; cursor: pointer; border: 1px solid #334155; border-radius: .6rem; padding: .6rem .4rem; text-align: center; font-size: .85rem; color: #cbd5e1; background: #020617; }
+  input.tod:checked + .tod-opt.t-off  { border-color: #10b981; background: rgba(16,185,129,.12); color: #6ee7b7; }
+  input.tod:checked + .tod-opt.t-norm { border-color: #f59e0b; background: rgba(245,158,11,.12); color: #fcd34d; }
+  input.tod:checked + .tod-opt.t-peak { border-color: #ef4444; background: rgba(239,68,68,.12); color: #fca5a5; }
+  input.tod:focus-visible + .tod-opt { outline: 2px solid #22d3ee; outline-offset: 2px; }
+  @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+  .chip { border: 1px solid #334155; border-radius: 9999px; padding: .25rem .75rem; font-size: .75rem; color: #94a3b8; background: #020617; cursor: pointer; transition: border-color .15s, color .15s; }
+  .chip:hover { border-color: #22d3ee; }
+  .chip.on { border-color: #22d3ee; color: #67e8f9; background: rgba(34,211,238,.1); }
+  .rk-row { transition: border-color .15s, background .15s; }
+  .rk-row:hover { border-color: #475569; }
+</style>
+</head>
+<body class="text-slate-200 antialiased">
+
+<header class="border-b border-slate-800 bg-slate-950">
+  <div class="max-w-[1600px] mx-auto px-4 py-4 flex flex-wrap items-center justify-between gap-3">
+    <div class="flex items-center gap-3">
+      <div class="w-10 h-10 rounded-lg bg-emerald-500/15 border border-emerald-500/40 flex items-center justify-center text-xl" aria-hidden="true">⛽</div>
+      <div>
+        <h1 class="text-xl font-bold text-white leading-tight">FuelWise <span class="text-emerald-400">AI</span> <span class="text-sm font-medium text-cyan-400">Bangkok 50 Districts Edition</span></h1>
+        <p class="text-sm text-slate-400">ระบบคำนวณและประเมินค่าน้ำมันอัจฉริยะตามสภาพการจราจร 50 เขตกรุงเทพฯ และรุ่นยานพาหนะ</p>
+      </div>
+    </div>
+    <div class="text-sm text-slate-400">ราคาน้ำมันอ้างอิง <span id="hdrPrice" class="text-amber-400 font-semibold num">38.50</span> บาท/ลิตร</div>
+  </div>
+</header>
+
+<main class="max-w-[1600px] mx-auto px-4 py-5 grid grid-cols-1 lg:grid-cols-12 gap-5">
+
+  <!-- ฝั่งซ้าย 5 คอลัมน์ -->
+  <section class="lg:col-span-5 space-y-5 order-2 lg:order-1">
+
+    <div class="panel p-5">
+      <h2 class="text-lg font-semibold text-white mb-4">เลือกยานพาหนะและเส้นทาง</h2>
+      <div class="grid sm:grid-cols-2 gap-4">
+        <div>
+          <label for="brand" class="block text-sm text-slate-400 mb-1">กลุ่มยานพาหนะ / ยี่ห้อ</label>
+          <select id="brand" class="field"></select>
+        </div>
+        <div>
+          <label for="model" class="block text-sm text-slate-400 mb-1">รุ่นยานพาหนะ</label>
+          <select id="model" class="field"></select>
+        </div>
+        <div>
+          <label for="economy" class="block text-sm text-slate-400 mb-1">อัตราสิ้นเปลืองมาตรฐาน (km/L) แก้ไขได้</label>
+          <input id="economy" type="number" min="0.5" step="0.1" class="field num">
+        </div>
+        <div>
+          <label for="price" class="block text-sm text-slate-400 mb-1">ราคาน้ำมัน (บาท/ลิตร)</label>
+          <input id="price" type="number" min="1" step="0.01" value="38.50" class="field num">
+        </div>
+      </div>
+
+      <div class="mt-5 grid grid-cols-[1fr_auto_1fr] items-end gap-2">
+        <div>
+          <label for="origin" class="block text-sm text-slate-400 mb-1">เขตต้นทาง (Origin District)</label>
+          <select id="origin" class="field"></select>
+        </div>
+        <button id="swapBtn" type="button" class="mb-0.5 rounded-lg border border-slate-700 hover:border-cyan-400 text-cyan-400 px-3 py-2.5 transition-colors" aria-label="สลับต้นทางและปลายทาง">⇄</button>
+        <div>
+          <label for="dest" class="block text-sm text-slate-400 mb-1">เขตปลายทาง (Destination District)</label>
+          <select id="dest" class="field"></select>
+        </div>
+      </div>
+
+      <fieldset class="mt-5">
+        <legend class="text-sm text-slate-400 mb-2">ช่วงเวลาเดินทาง (Time of Day)</legend>
+        <div class="grid grid-cols-3 gap-2">
+          <label><input class="tod sr-only" type="radio" name="tod" value="off"><span class="tod-opt t-off">🟢 นอกเวลาเร่งด่วน<br><span class="text-xs opacity-70">Off-Peak ×1.00</span></span></label>
+          <label><input class="tod sr-only" type="radio" name="tod" value="norm" checked><span class="tod-opt t-norm">🟠 ปานกลาง<br><span class="text-xs opacity-70">Normal Daytime ×1.25</span></span></label>
+          <label><input class="tod sr-only" type="radio" name="tod" value="peak"><span class="tod-opt t-peak">🔴 ชั่วโมงเร่งด่วน<br><span class="text-xs opacity-70">Peak Rush Hour ×1.60</span></span></label>
+        </div>
+      </fieldset>
+
+      <button id="calcBtn" class="mt-5 w-full rounded-lg bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-semibold py-3 transition-colors">คำนวณค่าน้ำมัน</button>
+      <p id="err" class="text-sm text-red-400 mt-2 hidden" role="alert"></p>
+    </div>
+
+    <div class="panel p-5">
+      <div class="flex flex-wrap items-center justify-between gap-2 mb-4">
+        <h2 class="text-lg font-semibold text-white">ผลการคำนวณ</h2>
+        <span id="badge" class="text-sm px-3 py-1 rounded-full border border-slate-600 text-slate-300">รอการคำนวณ</span>
+      </div>
+      <div class="grid grid-cols-2 gap-3">
+        <div class="rounded-xl bg-slate-950 border border-slate-800 p-4 col-span-2">
+          <p class="text-sm text-slate-400">ค่าน้ำมันสุทธิ</p>
+          <p class="text-4xl font-bold text-emerald-400 num"><span id="rCost">–</span> <span class="text-base font-medium text-slate-400">บาท</span></p>
+        </div>
+        <div class="rounded-xl bg-slate-950 border border-slate-800 p-4">
+          <p class="text-sm text-slate-400">ระยะทางขับขี่โดยประมาณ</p>
+          <p class="text-2xl font-semibold text-cyan-400 num"><span id="rDist">–</span> <span class="text-sm text-slate-400">กม.</span></p>
+        </div>
+        <div class="rounded-xl bg-slate-950 border border-slate-800 p-4">
+          <p class="text-sm text-slate-400">น้ำมันที่ใช้</p>
+          <p class="text-2xl font-semibold text-cyan-400 num"><span id="rLiters">–</span> <span class="text-sm text-slate-400">ลิตร</span></p>
+        </div>
+        <div class="rounded-xl bg-slate-950 border border-slate-800 p-4">
+          <p class="text-sm text-slate-400">อัตราสิ้นเปลืองจริง</p>
+          <p class="text-2xl font-semibold text-amber-400 num"><span id="rEco">–</span> <span class="text-sm text-slate-400">km/L</span></p>
+        </div>
+        <div class="rounded-xl bg-slate-950 border border-slate-800 p-4">
+          <p class="text-sm text-slate-400">เวลาเดินทางประเมิน</p>
+          <p class="text-2xl font-semibold text-amber-400 num"><span id="rTime">–</span> <span class="text-sm text-slate-400">นาที</span></p><p class="text-xs text-slate-500 num" id="rTimeSub">&nbsp;</p>
+        </div>
+      </div>
+    </div>
+
+    <div class="panel p-5 border-emerald-500/30">
+      <h2 class="text-lg font-semibold text-white mb-3">AI Insight และการวิเคราะห์เขต</h2>
+      <div id="insight" class="text-sm leading-7 text-slate-300 space-y-2"><p>เลือกเขตต้นทางและปลายทาง แล้วกด "คำนวณค่าน้ำมัน" เพื่อดูการวิเคราะห์</p></div>
+    </div>
+
+    <div class="panel p-5">
+      <h2 class="text-lg font-semibold text-white mb-1">ค่าน้ำมัน: ช่วงปกติ เทียบกับ ช่วงรถติด</h2>
+      <p class="text-sm text-slate-400 mb-3">เขตและรุ่นรถเดียวกัน เปลี่ยนเฉพาะช่วงเวลาเดินทาง แท่งที่เลือกอยู่จะสว่างกว่า</p>
+      <div class="relative h-64"><canvas id="chart" role="img" aria-label="กราฟแท่งเปรียบเทียบค่าน้ำมัน"></canvas></div>
+    </div>
+  </section>
+
+  <!-- ฝั่งขวา 7 คอลัมน์ -->
+  <section class="lg:col-span-7 order-1 lg:order-2 lg:sticky lg:top-5 self-start space-y-4">
+    <div class="panel p-4">
+      <div class="mb-3">
+        <h2 id="rkTitle" class="text-lg font-semibold text-white">จัดอันดับค่าน้ำมันไปทุกเขต</h2>
+        <p class="text-sm text-slate-400">คำนวณจากเขตต้นทางที่เลือก ด้วยรถรุ่น ราคาน้ำมัน และช่วงเวลาเดินทางปัจจุบัน กดที่แถวเพื่อตั้งเป็นเขตปลายทาง</p>
+      </div>
+      <div id="rkStats" class="grid grid-cols-3 gap-2 mb-3"></div>
+      <div class="flex flex-wrap items-center justify-between gap-2 mb-3">
+        <div id="rkZones" class="flex flex-wrap gap-1.5">
+          <button type="button" class="chip on" data-zone="ALL">ทุกโซน</button>
+          <button type="button" class="chip" data-zone="I">Inner Core</button>
+          <button type="button" class="chip" data-zone="U">Urban</button>
+          <button type="button" class="chip" data-zone="S">Sub-Urban</button>
+          <button type="button" class="chip" data-zone="O">Outer Core</button>
+        </div>
+        <div id="rkSort" class="flex gap-1.5">
+          <button type="button" class="chip on" data-sort="asc">ถูก ➔ แพง</button>
+          <button type="button" class="chip" data-sort="desc">แพง ➔ ถูก</button>
+        </div>
+      </div>
+      <div id="rkList" class="space-y-1.5 overflow-y-auto pr-1 h-[420px] lg:h-[calc(100vh-470px)] lg:min-h-[340px]" role="list"></div>
+      <div class="flex items-center gap-4 text-xs text-slate-400 mt-3">
+        <span><span class="inline-block w-3 h-1 bg-emerald-500 align-middle"></span> คล่องตัว</span>
+        <span><span class="inline-block w-3 h-1 bg-amber-500 align-middle"></span> ชะลอตัว</span>
+        <span><span class="inline-block w-3 h-1 bg-red-500 align-middle"></span> ติดขัดรุนแรง</span>
+      </div>
+    </div>
+    <div class="grid sm:grid-cols-2 gap-4">
+      <div class="panel p-4" id="cardO"></div>
+      <div class="panel p-4" id="cardD"></div>
+    </div>
+  </section>
+</main>
+
+<footer class="text-center text-xs text-slate-500 py-6">FuelWise AI · ระบบประเมินค่าน้ำมัน 50 เขตกรุงเทพฯ · พิกัดและค่าจราจรเป็นข้อมูลจำลองเพื่อการเรียนรู้ ผลลัพธ์เป็นค่าประมาณ</footer>
+
+<script>
+// ===== ฐานข้อมูลยานพาหนะ =====
+const VEHICLES = {
+  "moto_family": { label: "มอเตอร์ไซค์ครอบครัว", type: "moto", models: [{ name: "Honda Wave 110i", kmpl: 64.0 }] },
+  "moto_auto":   { label: "สกู๊ตเตอร์ออโตเมติก", type: "moto", models: [{ name: "Yamaha Grand Filano Hybrid 125", kmpl: 55.5, hybrid: true }] },
+  "moto_big":    { label: "บิ๊กไบค์สปอร์ต (Bigbike)", type: "bigbike", models: [{ name: "Kawasaki Ninja ZX-6R 4 สูบ 636cc", kmpl: 16.5 }] },
+  "eco":         { label: "เก๋งเล็ก (Eco Car)", type: "hybridish", models: [{ name: "Toyota Yaris 1.2 Sport", kmpl: 23.3 }, { name: "Honda City e:HEV 1.5 Hybrid", kmpl: 27.8, hybrid: true }] },
+  "csegment":    { label: "เก๋งกลาง (C-Segment)", type: "sedan", models: [{ name: "Toyota Corolla Altis 1.8", kmpl: 15.4 }, { name: "Honda Civic FE 1.5 Turbo", kmpl: 17.2 }] },
+  "dsegment":    { label: "เก๋งใหญ่ / ผู้บริหาร (D-Segment)", type: "sedan", models: [{ name: "Toyota Camry 2.5 HEV", kmpl: 23.8, hybrid: true }, { name: "Honda Accord e:HEV 2.0", kmpl: 24.4, hybrid: true }] },
+  "luxury":      { label: "รถยุโรปหรู / ปลั๊กอินไฮบริด (Luxury PHEV)", type: "luxury", models: [{ name: "Volvo XC60 Recharge T8", kmpl: 43.5, hybrid: true }, { name: "Mercedes-Benz C 220 d ดีเซล", kmpl: 21.5 }, { name: "BMW 330e M Sport", kmpl: 41.7, hybrid: true }] },
+  "super":       { label: "รถสปอร์ต / ซูเปอร์คาร์ (Supercar)", type: "super", models: [{ name: "BMW M3 Competition 3.0 Bi-Turbo", kmpl: 9.8 }, { name: "Porsche 911 GT3 4.0L", kmpl: 7.5 }] },
+  "truck_mid":   { label: "รถบรรทุกเชิงพาณิชย์ขนาดกลาง", type: "truck", models: [{ name: "รถบรรทุก 6 ล้อ ขนส่งขนาดกลาง (Medium Truck)", kmpl: 6.5 }] },
+  "truck_heavy": { label: "รถบรรทุกเชิงพาณิชย์ขนาดใหญ่", type: "truck", models: [{ name: "รถบรรทุก 10 ล้อ หัวลากขนาดใหญ่ (Heavy Truck)", kmpl: 2.8 }] }
+};
+
+const TIPS = {
+  moto: "รักษาแรงดันลมยางให้ได้ตามคู่มือ เร่งเครื่องนิ่มๆ และเลี่ยงการเดินเครื่องทิ้งไว้ขณะรอสัญญาณไฟนาน",
+  bigbike: "เครื่อง 4 สูบกินน้ำมันเพิ่มมากเมื่อใช้รอบสูง ควรเปลี่ยนเกียร์ที่รอบกลางและเลี่ยงการเร่งสลับเบรกถี่ๆ ในช่วงรถติด",
+  hybridish: "รถ Eco และไฮบริดประหยัดสุดเมื่อเร่งนุ่มและปล่อยให้ระบบเบรกแปลงพลังงานกลับ ใช้ Eco Mode และรักษาความเร็วคงที่",
+  sedan: "ใช้ความเร็วคงที่บนทางหลวง ลดน้ำหนักบรรทุกที่ไม่จำเป็น และเว้นระยะห่างรถคันหน้าเพื่อลดการเบรกถี่",
+  luxury: "รถปลั๊กอินไฮบริดควรชาร์จแบตให้เต็มก่อนเดินทางและใช้โหมด EV ในเมือง ส่วนรถดีเซลควรใช้ความเร็วคงที่บนทางหลวง",
+  super: "เครื่องยนต์สมรรถนะสูงกินน้ำมันมากเมื่อเร่งหนัก การขับแบบนุ่มนวลและเลี่ยงรอบสูงช่วยลดค่าน้ำมันได้ชัดเจน",
+  truck: "รักษารอบเครื่องในช่วงสีเขียว วางแผนเส้นทางเลี่ยงชั่วโมงเร่งด่วน และกระจายน้ำหนักบรรทุกให้สมดุล"
+};
+
+// ===== ฐานข้อมูลสถิติจราจร 50 เขตกรุงเทพมหานคร: [ชื่อเขต, lat, lng, โซนผังเมือง, Base Congestion Multiplier] =====
+// I = Inner Core (1.60-1.70), U = Urban (1.40-1.45), S = Sub-Urban (1.25-1.35), O = Outer Core (1.05-1.20)
+const ZONES = {
+  I: "Inner Core (ใจกลางเมืองชั้นใน)",
+  U: "Urban (เขตเมือง)",
+  S: "Sub-Urban (ชานเมืองชั้นใน)",
+  O: "Outer Core (เขตรอบนอก)"
+};
+const DISTRICTS = [
+  ["พระนคร", 13.7500, 100.4960, "I", 1.60],
+  ["ดุสิต", 13.7770, 100.5160, "I", 1.60],
+  ["หนองจอก", 13.8560, 100.8600, "O", 1.05],
+  ["บางรัก", 13.7270, 100.5250, "I", 1.70],
+  ["บางเขน", 13.8700, 100.5960, "S", 1.35],
+  ["บางกะปิ", 13.7660, 100.6470, "U", 1.40],
+  ["ปทุมวัน", 13.7440, 100.5330, "I", 1.70],
+  ["ป้อมปราบศัตรูพ่าย", 13.7530, 100.5170, "I", 1.60],
+  ["พระโขนง", 13.7050, 100.5950, "U", 1.45],
+  ["มีนบุรี", 13.8130, 100.7290, "O", 1.10],
+  ["ลาดกระบัง", 13.7220, 100.7780, "O", 1.15],
+  ["ยานนาวา", 13.6990, 100.5440, "I", 1.60],
+  ["สัมพันธวงศ์", 13.7370, 100.5130, "I", 1.60],
+  ["พญาไท", 13.7790, 100.5330, "I", 1.65],
+  ["ธนบุรี", 13.7310, 100.4870, "U", 1.40],
+  ["บางกอกใหญ่", 13.7360, 100.4730, "U", 1.40],
+  ["ห้วยขวาง", 13.7780, 100.5740, "I", 1.65],
+  ["คลองสาน", 13.7260, 100.5070, "U", 1.45],
+  ["ตลิ่งชัน", 13.7770, 100.4300, "O", 1.20],
+  ["บางกอกน้อย", 13.7650, 100.4690, "U", 1.40],
+  ["บางขุนเทียน", 13.6040, 100.4350, "O", 1.10],
+  ["ภาษีเจริญ", 13.7170, 100.4300, "S", 1.35],
+  ["หนองแขม", 13.7000, 100.3500, "O", 1.10],
+  ["ราษฎร์บูรณะ", 13.6800, 100.5100, "S", 1.30],
+  ["บางพลัด", 13.7930, 100.5040, "U", 1.40],
+  ["ดินแดง", 13.7690, 100.5560, "I", 1.70],
+  ["บึงกุ่ม", 13.7850, 100.6700, "S", 1.30],
+  ["สาทร", 13.7220, 100.5290, "I", 1.70],
+  ["บางซื่อ", 13.8060, 100.5340, "U", 1.45],
+  ["จตุจักร", 13.8290, 100.5560, "U", 1.45],
+  ["บางคอแหลม", 13.6960, 100.5030, "S", 1.35],
+  ["ประเวศ", 13.7150, 100.6900, "O", 1.20],
+  ["คลองเตย", 13.7220, 100.5580, "I", 1.70],
+  ["สวนหลวง", 13.7300, 100.6350, "S", 1.35],
+  ["จอมทอง", 13.6800, 100.4790, "S", 1.30],
+  ["ดอนเมือง", 13.9130, 100.5990, "O", 1.20],
+  ["ราชเทวี", 13.7580, 100.5330, "I", 1.70],
+  ["ลาดพร้าว", 13.8160, 100.6100, "U", 1.40],
+  ["วัฒนา", 13.7370, 100.5750, "I", 1.70],
+  ["บางแค", 13.7080, 100.4100, "O", 1.20],
+  ["หลักสี่", 13.8800, 100.5750, "S", 1.30],
+  ["สายไหม", 13.9050, 100.6600, "O", 1.15],
+  ["คันนายาว", 13.8250, 100.6760, "S", 1.30],
+  ["สะพานสูง", 13.7700, 100.6890, "S", 1.30],
+  ["วังทองหลาง", 13.7830, 100.6100, "U", 1.40],
+  ["คลองสามวา", 13.8700, 100.7200, "O", 1.05],
+  ["บางนา", 13.6680, 100.6050, "S", 1.35],
+  ["ทวีวัฒนา", 13.7800, 100.3600, "O", 1.10],
+  ["ทุ่งครุ", 13.6200, 100.5000, "O", 1.15],
+  ["บางบอน", 13.6500, 100.3980, "O", 1.10]
+];
+
+// ===== ช่วงเวลาเดินทาง =====
+const TOD = {
+  off:  { label: "นอกเวลาเร่งด่วน (Off-Peak)", short: "นอกเวลาเร่งด่วน", mult: 1.00 },
+  norm: { label: "ปานกลาง (Normal Daytime)", short: "ปานกลาง", mult: 1.25 },
+  peak: { label: "ชั่วโมงเร่งด่วน (Peak Rush Hour)", short: "ชั่วโมงเร่งด่วน", mult: 1.60 }
+};
+
+const FREE_FLOW_KMH = 50;   // ความเร็วเฉลี่ยบนถนนเมื่อดัชนีจราจร = 1.0
+const ROAD_FACTOR = 1.35;   // Road Distance Factor
+
+const $ = id => document.getElementById(id);
+const brandEl = $("brand"), modelEl = $("model"), ecoEl = $("economy"), priceEl = $("price"), oEl = $("origin"), dEl = $("dest");
+let chart;
+
+function fmt(n, d = 2) { return Number(n).toLocaleString("th-TH", { minimumFractionDigits: d, maximumFractionDigits: d }); }
+function selectedTod() { return document.querySelector('input[name="tod"]:checked').value; }
+
+// ระยะทางเชิงเส้นตามพิกัด (Haversine) หน่วย กม.
+function haversine(lat1, lng1, lat2, lng2) {
+  const R = 6371, rad = x => x * Math.PI / 180;
+  const dLat = rad(lat2 - lat1), dLng = rad(lng2 - lng1);
+  const a = Math.sin(dLat / 2) ** 2 + Math.cos(rad(lat1)) * Math.cos(rad(lat2)) * Math.sin(dLng / 2) ** 2;
+  return 2 * R * Math.asin(Math.sqrt(a));
+}
+
+// ระดับความติดขัดจาก Total Congestion Index
+function level(idx) {
+  if (idx < 1.35) return { key: "flow", label: "🟢 คล่องตัว", color: "#10b981", dash: null, cls: "border-emerald-500 text-emerald-300 bg-emerald-500/10" };
+  if (idx < 1.90) return { key: "mod", label: "🟠 ชะลอตัว", color: "#f59e0b", dash: null, cls: "border-amber-500 text-amber-300 bg-amber-500/10" };
+  return { key: "heavy", label: "🔴 ติดขัดรุนแรง", color: "#ef4444", dash: "10 10", cls: "border-red-500 text-red-300 bg-red-500/10" };
+}
+
+// ===== dropdown =====
+function fillBrands() {
+  brandEl.innerHTML = Object.keys(VEHICLES).map(k => '<option value="' + k + '">' + VEHICLES[k].label + '</option>').join("");
+  fillModels();
+}
+function fillModels() {
+  modelEl.innerHTML = VEHICLES[brandEl.value].models.map((m, i) => '<option value="' + i + '">' + m.name + '</option>').join("");
+  applyModel();
+}
+function applyModel() { ecoEl.value = VEHICLES[brandEl.value].models[modelEl.value].kmpl; }
+function fillDistricts() {
+  const opts = DISTRICTS.map((d, i) => '<option value="' + i + '">เขต' + d[0] + '</option>').join("");
+  oEl.innerHTML = opts; dEl.innerHTML = opts;
+  oEl.value = DISTRICTS.findIndex(d => d[0] === "ดอนเมือง");
+  dEl.value = DISTRICTS.findIndex(d => d[0] === "สาทร");
+}
+
+// ===== จัดอันดับค่าน้ำมันไปทุกเขต =====
+const ZONE_COLOR = { I: "#f43f5e", U: "#f59e0b", S: "#38bdf8", O: "#34d399" };
+const ZONE_SHORT = { I: "Inner Core", U: "Urban", S: "Sub-Urban", O: "Outer Core" };
+let rkZone = "ALL", rkSort = "asc";
+
+function renderRanking() {
+  const oi = Number(oEl.value), o = DISTRICTS[oi], di = Number(dEl.value);
+  const base = parseFloat(ecoEl.value), price = parseFloat(priceEl.value), tod = selectedTod();
+  if (!(base > 0) || !(price > 0)) return;
+
+  const all = [];
+  DISTRICTS.forEach((d, i) => {
+    if (i === oi) return;
+    const roadKm = haversine(o[1], o[2], d[1], d[2]) * ROAD_FACTOR;
+    const index = ((o[4] + d[4]) / 2) * TOD[tod].mult;
+    const cost = roadKm / (base / index) * price;
+    const minutes = roadKm / (FREE_FLOW_KMH / index) * 60;
+    all.push({ i, d, roadKm, index, cost, minutes, lv: level(index) });
+  });
+
+  const byCost = all.slice().sort((a, b) => a.cost - b.cost);
+  const avg = all.reduce((s, r) => s + r.cost, 0) / all.length;
+  const lo = byCost[0], hi = byCost[byCost.length - 1];
+  const stat = (label, name, val, color) =>
+    '<div class="rounded-xl bg-slate-950 border border-slate-800 p-3"><p class="text-xs text-slate-400">' + label + '</p>' +
+    '<p class="text-sm text-white truncate">' + name + '</p><p class="num font-semibold" style="color:' + color + '">' + fmt(val) + ' <span class="text-xs text-slate-400 font-normal">บาท</span></p></div>';
+  $("rkStats").innerHTML =
+    stat("ถูกที่สุด", "เขต" + lo.d[0], lo.cost, "#34d399") +
+    stat("เฉลี่ยทุกเขต", "49 เขตปลายทาง", avg, "#22d3ee") +
+    stat("แพงที่สุด", "เขต" + hi.d[0], hi.cost, "#f87171");
+  $("rkTitle").textContent = "จัดอันดับค่าน้ำมันจากเขต" + o[0] + "ไปทุกเขต";
+
+  let rows = all.filter(r => rkZone === "ALL" || r.d[3] === rkZone);
+  rows.sort((a, b) => rkSort === "asc" ? a.cost - b.cost : b.cost - a.cost);
+  const max = hi.cost;
+  $("rkList").innerHTML = rows.map((r, n) => {
+    const sel = r.i === di;
+    return '<button type="button" role="listitem" data-i="' + r.i + '" class="rk-row w-full text-left rounded-lg border px-3 py-2 ' +
+      (sel ? "border-cyan-400 bg-cyan-400/5" : "border-slate-800 bg-slate-950") + '">' +
+      '<div class="flex items-center justify-between gap-2">' +
+        '<span class="text-sm text-white"><span class="text-slate-500 num mr-2">#' + (n + 1) + '</span>เขต' + r.d[0] +
+        ' <span class="text-xs ml-1" style="color:' + ZONE_COLOR[r.d[3]] + '">● ' + ZONE_SHORT[r.d[3]] + '</span></span>' +
+        '<span class="num font-semibold text-sm" style="color:' + r.lv.color + '">' + fmt(r.cost) + ' บาท</span>' +
+      '</div>' +
+      '<div class="mt-1.5 h-1.5 rounded bg-slate-800"><div class="h-full rounded" style="width:' + Math.max(3, r.cost / max * 100).toFixed(1) + '%;background:' + r.lv.color + '"></div></div>' +
+      '<div class="mt-1 flex justify-between text-xs text-slate-500 num"><span>' + fmt(r.roadKm, 1) + ' กม.</span><span>≈ ' + Math.round(r.minutes) + ' นาที · Index ×' + r.index.toFixed(2) + '</span></div>' +
+    '</button>';
+  }).join("") || '<p class="text-sm text-slate-500 p-3">ไม่มีเขตในโซนนี้</p>';
+}
+
+// ===== การ์ดสถิติเขต =====
+function districtCard(title, d) {
+  const lv = level(d[4]);
+  return '<p class="text-sm text-slate-400">' + title + '</p>' +
+    '<p class="text-lg font-semibold text-white">เขต' + d[0] + '</p>' +
+    '<p class="text-sm text-slate-400 mt-1">โซนผังเมือง: ' + ZONES[d[3]] + '</p>' +
+    '<div class="flex items-center justify-between mt-3 text-sm"><span class="text-slate-400">Base Congestion Multiplier</span><span class="num font-semibold" style="color:' + lv.color + '">×' + d[4].toFixed(2) + '</span></div>' +
+    '<div class="flex items-center justify-between mt-1 text-sm"><span class="text-slate-400">พิกัด</span><span class="num text-slate-300">' + d[1].toFixed(3) + ', ' + d[2].toFixed(3) + '</span></div>';
+}
+
+// ===== คำนวณ =====
+function calculate() {
+  const err = $("err");
+  const o = DISTRICTS[oEl.value], d = DISTRICTS[dEl.value];
+  const base = parseFloat(ecoEl.value), price = parseFloat(priceEl.value);
+  renderRanking();
+  if (oEl.value === dEl.value) { err.textContent = "กรุณาเลือกเขตต้นทางและปลายทางให้ต่างกัน"; err.classList.remove("hidden"); return; }
+  if (!(base > 0) || !(price > 0)) { err.textContent = "กรุณากรอกอัตราสิ้นเปลืองและราคาน้ำมันเป็นตัวเลขที่มากกว่า 0"; err.classList.remove("hidden"); return; }
+  err.classList.add("hidden");
+  $("hdrPrice").textContent = fmt(price);
+
+  const tod = selectedTod();
+  const roadKm = haversine(o[1], o[2], d[1], d[2]) * ROAD_FACTOR;
+  const avgBase = (o[4] + d[4]) / 2;
+  const index = avgBase * TOD[tod].mult;          // Total Congestion Index
+  const lv = level(index);
+
+  const realEco = base / index;
+  const liters = roadKm / realEco;
+  const cost = liters * price;
+  const minutes = roadKm / (FREE_FLOW_KMH / index) * 60;
+
+  $("rCost").textContent = fmt(cost);
+  $("rLiters").textContent = fmt(liters);
+  $("rDist").textContent = fmt(roadKm, 1);
+  $("rEco").textContent = fmt(realEco, 1);
+  $("rTime").textContent = Math.round(minutes).toLocaleString("th-TH");
+  $("rTimeSub").textContent = minutes >= 60 ? "≈ " + Math.floor(minutes / 60) + " ชม. " + Math.round(minutes % 60) + " นาที" : "\u00a0";
+  const b = $("badge");
+  b.className = "text-sm px-3 py-1 rounded-full border " + lv.cls;
+  b.textContent = lv.label + " · Index ×" + index.toFixed(2);
+
+  $("cardO").innerHTML = districtCard("เขตต้นทาง", o);
+  $("cardD").innerHTML = districtCard("เขตปลายทาง", d);
+
+  const costAt = k => (roadKm / (base / (avgBase * TOD[k].mult))) * price;
+  updateChart(costAt, tod);
+  updateInsight({ o, d, roadKm, avgBase, index, lv, liters, cost, base, price, minutes, tod, costOff: costAt("off"), costPeak: costAt("peak") });
+}
+
+// ===== กราฟ =====
+function updateChart(costAt, tod) {
+  const keys = ["off", "norm", "peak"], base = ["#10b981", "#f59e0b", "#ef4444"];
+  const data = keys.map(k => Number(costAt(k).toFixed(2)));
+  const colors = keys.map((k, i) => base[i] + (k === tod ? "" : "66"));
+  const labels = keys.map(k => TOD[k].short);
+  if (chart) { chart.data.datasets[0].data = data; chart.data.datasets[0].backgroundColor = colors; chart.update(); return; }
+  Chart.defaults.color = "#94a3b8";
+  Chart.defaults.font.family = "'IBM Plex Sans Thai', sans-serif";
+  chart = new Chart($("chart"), {
+    type: "bar",
+    data: { labels, datasets: [{ label: "ค่าน้ำมัน (บาท)", data, backgroundColor: colors, borderColor: base, borderWidth: 1, borderRadius: 6 }] },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { display: false }, tooltip: { callbacks: { label: c => " " + fmt(c.parsed.y) + " บาท" } } },
+      scales: { y: { beginAtZero: true, grid: { color: "#1e293b" }, title: { display: true, text: "บาท" } }, x: { grid: { display: false } } }
+    }
+  });
+}
+
+// ===== AI Dynamic Insight =====
+function updateInsight(x) {
+  const g = VEHICLES[brandEl.value], m = g.models[modelEl.value];
+  const diff = x.costPeak - x.costOff;
+  const incPct = (x.index - 1) * 100;
+  const hasInner = x.o[3] === "I" || x.d[3] === "I";
+  const bothOuter = x.o[3] === "O" && x.d[3] === "O";
+
+  let zoneText;
+  if (x.o[3] === "I" && x.d[3] === "I") zoneText = "เส้นทางนี้เชื่อมระหว่างโซน Inner Core ทั้งสองฝั่ง รถติดสะสมสูงตลอดเส้นทาง";
+  else if (hasInner) zoneText = "เส้นทางนี้วิ่งผ่านโซนเมืองชั้นใน (Inner Core) ซึ่งรถติดสะสมสูง";
+  else if (bothOuter) zoneText = "เส้นทางนี้อยู่ในเขตรอบนอก (Outer Core) การจราจรเบาบางกว่าตัวเมือง";
+  else zoneText = "เส้นทางนี้ผ่านโซนเมืองและชานเมือง ความหนาแน่นจราจรอยู่ในระดับกลาง";
+
+  let timeText;
+  if (x.tod === "peak") timeText = "ตอนนี้เลือกช่วงเร่งด่วน หากยืดหยุ่นได้ ลองเดินทางช่วง 10:00–15:00 น. หรือหลัง 20:30 น. จะลดทั้งเวลาและค่าน้ำมัน";
+  else if (x.tod === "norm") timeText = "ควรเลี่ยง 06:30–09:30 และ 16:30–19:30 น. ซึ่งเป็นช่วงที่ค่าน้ำมันสูงสุด";
+  else timeText = "ช่วงนี้เป็นช่วงที่ประหยัดที่สุดของเส้นทางนี้";
+
+  let html = "";
+  html += "<p>🔎 " + zoneText + " ส่งผลให้อัตรากินน้ำมันเพิ่มขึ้น <b class='text-amber-400'>" + fmt(incPct, 0) + "%</b> จากจราจรอุดมคติ (Total Congestion Index ×" + x.index.toFixed(2) + " จากค่าเฉลี่ยเขต ×" + x.avgBase.toFixed(2) + " และช่วงเวลา ×" + TOD[x.tod].mult.toFixed(2) + ")</p>";
+  html += "<p>💰 <b class='text-white'>" + m.name + "</b> เส้นทางเขต" + x.o[0] + " ➔ เขต" + x.d[0] + " ระยะทางถนนประมาณ " + fmt(x.roadKm, 1) + " กม. หากเดินทางตอนคล่องตัวเสีย <b class='text-emerald-400'>" + fmt(x.costOff) + " บาท</b> แต่ตอนรถติดหนักเสีย <b class='text-red-400'>" + fmt(x.costPeak) + " บาท</b> ต่างกัน <b class='text-amber-400'>" + fmt(diff) + " บาท</b></p>";
+  html += "<p>🕒 " + timeText + "</p>";
+  if (m.hybrid) html += "<p>🔋 รุ่นนี้เป็นระบบไฮบริด คุ้มค่าที่สุดในเมืองที่รถติด เพราะใช้มอเตอร์ไฟฟ้าช่วยตอนเคลื่อนตัวช้า อัตราสิ้นเปลืองจริงอาจดีกว่าค่าประมาณนี้</p>";
+  else if (x.lv.key !== "flow") html += "<p>🌿 เมื่อรถติดควรเปิดโหมด Eco ลดการเร่งสลับเบรก และดับเครื่องเมื่อจอดนิ่งนาน</p>";
+  html += "<p>💡 <b class='text-white'>จุดเด่นและเทคนิคสำหรับคลาส " + g.label + ":</b> " + TIPS[g.type] + "</p>";
+  $("insight").innerHTML = html;
+}
+
+// ===== เหตุการณ์ =====
+brandEl.addEventListener("change", () => { fillModels(); calculate(); });
+modelEl.addEventListener("change", () => { applyModel(); calculate(); });
+[ecoEl, priceEl].forEach(el => el.addEventListener("input", calculate));
+[oEl, dEl].forEach(el => el.addEventListener("change", calculate));
+document.querySelectorAll('input[name="tod"]').forEach(r => r.addEventListener("change", calculate));
+$("swapBtn").addEventListener("click", () => { const t = oEl.value; oEl.value = dEl.value; dEl.value = t; calculate(); });
+$("calcBtn").addEventListener("click", calculate);
+$("rkList").addEventListener("click", e => {
+  const b = e.target.closest("[data-i]"); if (!b) return;
+  dEl.value = b.dataset.i; calculate();
+});
+$("rkZones").addEventListener("click", e => {
+  const b = e.target.closest("[data-zone]"); if (!b) return;
+  rkZone = b.dataset.zone;
+  document.querySelectorAll("#rkZones .chip").forEach(c => c.classList.toggle("on", c === b));
+  renderRanking();
+});
+$("rkSort").addEventListener("click", e => {
+  const b = e.target.closest("[data-sort]"); if (!b) return;
+  rkSort = b.dataset.sort;
+  document.querySelectorAll("#rkSort .chip").forEach(c => c.classList.toggle("on", c === b));
+  renderRanking();
+});
+
+// ===== เริ่มต้นระบบ =====
+fillBrands();
+fillDistricts();
+calculate();
+</script>
+</body>
+</html>
